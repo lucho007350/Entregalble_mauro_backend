@@ -1,20 +1,22 @@
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const db = require('../../db');
 
 router.post('/register', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, isActive } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ message: 'Email y contraseña requeridos' });
   }
 
+  const activeValue = isActive === true || isActive === 1 || isActive === '1' ? 1 : 0;
+
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const sql = 'INSERT INTO users (email, password) VALUES (?, ?)';
-    db.query(sql, [email, hashedPassword], (err, result) => {
+    const sql = 'INSERT INTO users (email, password, is_active) VALUES (?, ?, ?)';
+    db.query(sql, [email, hashedPassword, activeValue], (err, result) => {
       if (err) {
         if (err.code === 'ER_DUP_ENTRY') {
           return res.status(400).json({ message: 'El email ya existe' });
@@ -31,6 +33,8 @@ router.post('/register', async (req, res) => {
 router.post('/login', (req, res) => {
   const { email, password } = req.body;
 
+  console.log('Login attempt:', email, password);
+
   if (!email || !password) {
     return res.status(400).json({ message: 'Email y contraseña requeridos' });
   }
@@ -45,12 +49,14 @@ router.post('/login', (req, res) => {
     }
 
     const user = results[0];
+    console.log('User found:', user);
 
     if (!user.is_active) {
       return res.status(403).json({ message: 'Usuario inactivo' });
     }
 
     const validPassword = await bcrypt.compare(password, user.password);
+    console.log('Password valid:', validPassword);
 
     if (!validPassword) {
       return res.status(400).json({ message: 'Contraseña incorrecta' });
